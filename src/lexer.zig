@@ -36,23 +36,23 @@ pub const Lexer = struct {
             switch (c) {
                 '(' => {
                     self.next();
-                    return Token.init(.open_paren);
+                    return .open_paren;
                 },
                 ')' => {
                     self.next();
-                    return Token.init(.close_paren);
+                    return .close_paren;
                 },
                 '{' => {
                     self.next();
-                    return Token.init(.open_brace);
+                    return .open_brace;
                 },
                 '}' => {
                     self.next();
-                    return Token.init(.close_brace);
+                    return .close_brace;
                 },
                 ';' => {
                     self.next();
-                    return Token.init(.semicolon);
+                    return .semicolon;
                 },
                 else => if (std.ascii.isAlphabetic(c) or c == '_') {
                     const start = self.offset;
@@ -60,16 +60,13 @@ pub const Lexer = struct {
                         if (!std.ascii.isAlphanumeric(c2) and c2 != '_') break;
                         self.next();
                     }
-                    const keywords = std.ComptimeStringMap(Token.Kind, .{
+                    const keywords = std.ComptimeStringMap(Token, .{
                         .{ "int", .int },
                         .{ "return", .@"return" },
                     });
                     const text = self.input[start..self.offset];
-                    if (keywords.get(text)) |kw| {
-                        return Token.init(kw);
-                    }
-                    const ident = try self.arena.allocator().dupe(u8, text);
-                    return Token.init(.{ .ident = ident });
+                    return keywords.get(text) orelse
+                        .{ .ident = try self.arena.allocator().dupe(u8, text) };
                 } else if (std.ascii.isDigit(c)) {
                     const start = self.offset;
                     while (self.get()) |c2| {
@@ -78,13 +75,13 @@ pub const Lexer = struct {
                     }
                     const text = self.input[start..self.offset];
                     const num = try std.fmt.parseInt(i32, text, 10);
-                    return Token.init(.{ .constant = num });
+                    return .{ .constant = num };
                 } else {
                     std.debug.print("error: can't handle character: {c}\n", .{c});
                     return error.NotImplemented;
                 },
             }
-        } else return Token.init(.eof);
+        } else return .eof;
     }
 
     pub fn lex(self: *@This()) ![]Token {
@@ -93,7 +90,7 @@ pub const Lexer = struct {
             const token = try self.nextToken();
             try tokens.append(token);
 
-            if (token.kind == .eof) break;
+            if (token == .eof) break;
         }
         return try tokens.toOwnedSlice();
     }
@@ -105,7 +102,7 @@ test "lex empty" {
 
     const tokens = try lexer.lex();
     try std.testing.expectEqual(@as(usize, 1), tokens.len);
-    try std.testing.expectEqual(Token.Kind.eof, tokens[0].kind);
+    try std.testing.expectEqual(Token.eof, tokens[0]);
 }
 
 test "lex simple" {
@@ -114,6 +111,6 @@ test "lex simple" {
 
     const tokens = try lexer.lex();
     try std.testing.expectEqual(@as(usize, 2), tokens.len);
-    try std.testing.expectEqual(Token.Kind.open_paren, tokens[0].kind);
-    try std.testing.expectEqual(Token.Kind.eof, tokens[1].kind);
+    try std.testing.expectEqual(Token.open_paren, tokens[0]);
+    try std.testing.expectEqual(Token.eof, tokens[1]);
 }
