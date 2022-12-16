@@ -42,9 +42,7 @@ fn doTest(p: TestPath) !void {
         a.allocator(),
         full_path,
         null,
-    ) catch |e| {
-        if (!p.invalid) return e;
-    };
+    ) catch |e| if (!p.invalid) return e;
 }
 
 pub fn run(stages: usize) !void {
