@@ -38,11 +38,13 @@ fn doTest(p: TestPath) !void {
     defer a.deinit();
     const full_path = try std.fs.path.join(a.allocator(), &.{ "src", "tests", p.path });
     std.debug.print("{s} ...\n", .{full_path});
-    try compile(
+    compile(
         a.allocator(),
         full_path,
         null,
-    );
+    ) catch |e| {
+        if (!p.invalid) return e;
+    };
 }
 
 pub fn run(stages: usize) !void {

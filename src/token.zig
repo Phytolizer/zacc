@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Token = union(enum) {
+pub const Token = union(Kind) {
     int,
     ident: []const u8,
     open_paren,
@@ -11,6 +11,23 @@ pub const Token = union(enum) {
     semicolon,
     close_brace,
     eof,
+
+    pub fn kind(self: @This()) Kind {
+        return std.meta.activeTag(self);
+    }
+
+    pub const Kind = enum {
+        int,
+        ident,
+        open_paren,
+        close_paren,
+        open_brace,
+        @"return",
+        constant,
+        semicolon,
+        close_brace,
+        eof,
+    };
 
     pub fn format(
         self: @This(),

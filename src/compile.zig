@@ -1,5 +1,5 @@
 const std = @import("std");
-const Lexer = @import("lexer.zig").Lexer;
+const Parser = @import("parser.zig").Parser;
 
 pub fn compile(
     a: std.mem.Allocator,
@@ -11,8 +11,7 @@ pub fn compile(
         input,
         std.math.maxInt(usize),
     );
-    var lexer = Lexer.init(a, contents);
-    defer lexer.deinit();
-    _ = try lexer.lex();
+    var parser = try Parser.init(a, contents);
+    _ = try parser.parse();
     _ = output;
 }
