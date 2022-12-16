@@ -1,7 +1,6 @@
 const std = @import("std");
 
 pub const Token = struct {
-    a: std.mem.Allocator,
     kind: Kind,
 
     pub const Kind = union(enum) {
@@ -14,13 +13,7 @@ pub const Token = struct {
         constant: i32,
         semicolon,
         close_brace,
-
-        pub fn deinit(self: @This(), a: std.mem.Allocator) void {
-            switch (self) {
-                .ident => |i| a.free(i),
-                else => {},
-            }
-        }
+        eof,
 
         pub fn format(
             self: @This(),
@@ -37,20 +30,32 @@ pub const Token = struct {
                 .@"return" => "return",
                 .semicolon => ";",
                 .close_brace => "}",
+                .eof => "eof",
+
+                // special handling
                 .constant => |c| return writer.print("{d}", .{c}),
             };
             return writer.writeAll(text);
         }
     };
 
-    pub fn init(a: std.mem.Allocator, kind: Kind) @This() {
-        return .{
-            .a = a,
-            .kind = kind,
-        };
-    }
-
-    pub fn deinit(self: @This()) void {
-        self.kind.deinit(self.a);
+    pub fn init(kind: Kind) @This() {
+        return .{ .kind = kind };
     }
 };
+
+test "init/deinit" {
+    var t = Token.init(.{ .constant = 69 });
+    var buf = [_]u8{0} ** 10;
+    try std.testing.expectEqualStrings(
+        "69",
+        try std.fmt.bufPrint(&buf, "{}", .{t.kind}),
+    );
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    t = Token.init(.{ .ident = try arena.allocator().dupe(u8, "hello") });
+    try std.testing.expectEqualStrings(
+        "hello",
+        try std.fmt.bufPrint(&buf, "{}", .{t.kind}),
+    );
+}
