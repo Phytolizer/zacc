@@ -5,15 +5,12 @@ pub const Lexer = struct {
     arena: std.heap.ArenaAllocator,
     input: []const u8,
     offset: usize = 0,
-    tokens: std.ArrayList(Token),
 
     pub fn init(a: std.mem.Allocator, input: []const u8) @This() {
         var result = @This(){
             .arena = std.heap.ArenaAllocator.init(a),
             .input = input,
-            .tokens = undefined,
         };
-        result.tokens = std.ArrayList(Token).init(result.arena.allocator());
         return result;
     }
 
@@ -21,7 +18,7 @@ pub const Lexer = struct {
         self.arena.deinit();
     }
 
-    pub fn nextToken(self: *@This()) !Token {
+    fn nextToken(self: *@This()) !Token {
         if (self.offset >= self.input.len)
             return Token.init(.eof);
 
@@ -33,20 +30,34 @@ pub const Lexer = struct {
             else => return error.NotImplemented,
         }
     }
+
+    pub fn lex(self: *@This()) ![]Token {
+        var tokens = std.ArrayList(Token).init(self.arena.allocator());
+        while (true) {
+            const token = try self.nextToken();
+            try tokens.append(token);
+
+            if (token.kind == .eof) break;
+        }
+        return try tokens.toOwnedSlice();
+    }
 };
 
 test "lex empty" {
     var lexer = Lexer.init(std.testing.allocator, "");
     defer lexer.deinit();
 
-    const token = try lexer.nextToken();
-    try std.testing.expectEqual(Token.Kind.eof, token.kind);
+    const tokens = try lexer.lex();
+    try std.testing.expectEqual(@as(usize, 1), tokens.len);
+    try std.testing.expectEqual(Token.Kind.eof, tokens[0].kind);
 }
 
 test "lex simple" {
     var lexer = Lexer.init(std.testing.allocator, "(");
     defer lexer.deinit();
 
-    const token = try lexer.nextToken();
-    try std.testing.expectEqual(Token.Kind.open_brace, token.kind);
+    const tokens = try lexer.lex();
+    try std.testing.expectEqual(@as(usize, 2), tokens.len);
+    try std.testing.expectEqual(Token.Kind.open_brace, tokens[0].kind);
+    try std.testing.expectEqual(Token.Kind.eof, tokens[1].kind);
 }
