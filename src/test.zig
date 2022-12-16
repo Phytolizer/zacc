@@ -43,6 +43,31 @@ fn doTest(p: TestPath) !void {
         full_path,
         null,
     ) catch |e| if (!p.invalid) return e;
+    if (!p.invalid) {
+        var child = std.ChildProcess.init(
+            &.{ "qemu-riscv64", "a.out" },
+            a.allocator(),
+        );
+        const actual_ret = try child.spawnAndWait();
+
+        child = std.ChildProcess.init(&.{
+            "zig",
+            "cc",
+            "-target",
+            "riscv64-linux-musl",
+            full_path,
+        }, a.allocator());
+        const compiler_ret = try child.spawnAndWait();
+        std.debug.assert(compiler_ret.Exited == 0);
+
+        child = std.ChildProcess.init(&.{
+            "qemu-riscv64",
+            "a.out",
+        }, a.allocator());
+        const expected_ret = try child.spawnAndWait();
+
+        try std.testing.expectEqual(expected_ret, actual_ret);
+    }
 }
 
 pub fn run(stages: usize) !void {

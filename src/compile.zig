@@ -18,7 +18,7 @@ pub fn compile(
     var temp_dir = try std.fs.cwd().makeOpenPath(temp_dpath, .{});
     defer {
         temp_dir.close();
-        std.fs.cwd().deleteTree(temp_dpath) catch {};
+        // std.fs.cwd().deleteTree(temp_dpath) catch {};
     }
     const temp_path = try std.fs.path.join(a, &.{ temp_dpath, "out.s" });
     {
@@ -27,9 +27,9 @@ pub fn compile(
         try cg.gen();
     }
     var child = std.ChildProcess.init(&.{
-        "clang",
-        "--target=arm64-linux-gnueabihf",
-        "-fuse-ld=lld",
+        "zig",
+        "cc",
+        "--target=riscv64-linux-musl",
         "-no-pie",
         "-nostdlib",
         "-o",

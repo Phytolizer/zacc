@@ -23,12 +23,16 @@ pub const CodeGenerator = struct {
     }
 
     pub fn gen(self: *@This()) !void {
-        // ARMv6-M asm
+        // RV64I asm
         var w = self.buf.writer();
+        try w.writeAll(".section .text\n");
+        try w.writeAll(".global _start\n");
+        try w.writeAll("_start:\n");
         try w.print(
-            "mov r0, #{d}\n",
+            "li a0, {d}\n",
             .{self.ast.function.statement.return_value.value},
         );
-        try w.print("svc #1\n", .{});
+        try w.writeAll("li a7, 93\n");
+        try w.writeAll("ecall\n");
     }
 };
