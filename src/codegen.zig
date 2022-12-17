@@ -25,13 +25,16 @@ pub const CodeGenerator = struct {
     // RV64I asm
     fn genExpression(self: *@This(), w: anytype, expr: *ast.Expression) !void {
         switch (expr.*) {
-            .constant => |v| try w.print("li a0, {d}\n", .{v}),
+            .constant => |v| {
+                try w.print("xor a0, a0, a0\n", .{});
+                try w.print("addi a0, a0, {d}\n", .{v});
+            },
             .unary_op => |op| {
                 try self.genExpression(w, op.expression);
                 switch (op.operator) {
-                    .bitwise_negation => try w.print("not a0, a0\n", .{}),
-                    .arithmetic_negation => try w.print("neg a0, a0\n", .{}),
-                    .logical_negation => try w.print("seqz a0, a0\n", .{}),
+                    .bitwise_negation => try w.print("xori a0, a0, -1\n", .{}),
+                    .arithmetic_negation => try w.print("sub a0, x0, a0\n", .{}),
+                    .logical_negation => try w.print("sltiu a0, a0, 1\n", .{}),
                 }
             },
         }
@@ -44,7 +47,8 @@ pub const CodeGenerator = struct {
         try w.writeAll("_start:\n");
         const retval = self.program.function.statement.return_value;
         try self.genExpression(w, retval);
-        try w.writeAll("li a7, 93\n");
+        try w.print("xor a7, a7, a7\n", .{});
+        try w.print("addi a7, a7, 93\n", .{});
         try w.writeAll("ecall\n");
     }
 };

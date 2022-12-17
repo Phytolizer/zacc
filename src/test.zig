@@ -73,6 +73,8 @@ fn doTest(p: TestPath, a: std.mem.Allocator) !void {
         const expected_ret = try child.spawnAndWait();
 
         try std.testing.expectEqual(expected_ret, actual_ret);
+
+        try std.fs.cwd().deleteFile("a.out");
     }
 }
 
