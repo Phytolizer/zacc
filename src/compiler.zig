@@ -1,9 +1,11 @@
 const std = @import("std");
+const Lexer = @import("lexer.zig").Lexer;
 const Parser = @import("parser.zig").Parser;
 const CodeGenerator = @import("codegen.zig").CodeGenerator;
 
 pub const ErrorInfo = union(enum) {
     parse: Parser.ErrorInfo,
+    lex: Lexer.ErrorInfo,
 
     pub fn format(
         self: @This(),
@@ -13,6 +15,7 @@ pub const ErrorInfo = union(enum) {
     ) !void {
         switch (self) {
             .parse => |e| try writer.print("{}", .{e}),
+            .lex => |e| try writer.print("{}", .{e}),
         }
     }
 };
@@ -28,10 +31,14 @@ pub fn compile(
         input,
         std.math.maxInt(usize),
     );
-    var parser = try Parser.init(a, contents);
-    var err: Parser.ErrorInfo = undefined;
-    const ast = parser.parse(&err) catch |e| {
-        out_err.* = .{ .parse = err };
+    var lex_err: Lexer.ErrorInfo = undefined;
+    var parser = Parser.init(a, contents, &lex_err) catch |e| {
+        out_err.* = .{ .lex = lex_err };
+        return e;
+    };
+    var parse_err: Parser.ErrorInfo = undefined;
+    const ast = parser.parse(&parse_err) catch |e| {
+        out_err.* = .{ .parse = parse_err };
         return e;
     };
     const temp_dpath = "zacc-temp";

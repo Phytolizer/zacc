@@ -7,6 +7,20 @@ pub const Lexer = struct {
     offset: usize = 0,
     line: usize = 1,
 
+    pub const ErrorInfo = struct {
+        message: []u8,
+        line: usize,
+
+        pub fn format(
+            self: @This(),
+            comptime _: []const u8,
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void {
+            try writer.print("line {d}: {s}", .{ self.line, self.message });
+        }
+    };
+
     pub fn init(a: std.mem.Allocator, input: []const u8) @This() {
         var result = @This(){
             .arena = std.heap.ArenaAllocator.init(a),
@@ -31,7 +45,7 @@ pub const Lexer = struct {
         self.offset += 1;
     }
 
-    fn nextToken(self: *@This()) !Token.Kind {
+    fn nextToken(self: *@This(), out_err: *ErrorInfo) !Token.Kind {
         while (self.get()) |c| {
             if (!std.ascii.isWhitespace(c)) break;
             self.next();
@@ -93,18 +107,25 @@ pub const Lexer = struct {
                     const num = try std.fmt.parseInt(i32, text, 10);
                     return .{ .constant = num };
                 } else {
-                    std.debug.print("error: can't handle character: {c}\n", .{c});
-                    return error.NotImplemented;
+                    out_err.* = .{
+                        .message = std.fmt.allocPrint(
+                            self.arena.allocator(),
+                            "can't handle character: {c}",
+                            .{c},
+                        ) catch unreachable,
+                        .line = self.line,
+                    };
+                    return error.UnrecognizedToken;
                 },
             }
         } else return .eof;
     }
 
-    pub fn lex(self: *@This()) ![]Token {
+    pub fn lex(self: *@This(), out_err: *ErrorInfo) ![]Token {
         var tokens = std.ArrayList(Token).init(self.arena.allocator());
         while (true) {
             const line = self.line;
-            const token_kind = try self.nextToken();
+            const token_kind = try self.nextToken(out_err);
             const token = Token.init(token_kind, line);
             try tokens.append(token);
 

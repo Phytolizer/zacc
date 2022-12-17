@@ -25,11 +25,15 @@ pub const Parser = struct {
         }
     };
 
-    pub fn init(a: std.mem.Allocator, source: []const u8) !@This() {
+    pub fn init(
+        a: std.mem.Allocator,
+        source: []const u8,
+        out_lex_err: *Lexer.ErrorInfo,
+    ) !@This() {
         var result: @This() = undefined;
         result.a = a;
         result.lexer = Lexer.init(a, source);
-        result.tokens = try result.lexer.lex();
+        result.tokens = try result.lexer.lex(out_lex_err);
         result.pos = 0;
         return result;
     }

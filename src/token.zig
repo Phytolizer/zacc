@@ -21,6 +21,9 @@ pub const Token = struct {
         minus,
         tilde,
         bang,
+        plus,
+        star,
+        slash,
 
         eof,
 
@@ -37,6 +40,9 @@ pub const Token = struct {
             minus,
             tilde,
             bang,
+            plus,
+            star,
+            slash,
 
             eof,
 
@@ -76,6 +82,9 @@ pub const Token = struct {
                 .minus => "-",
                 .tilde => "~",
                 .bang => "!",
+                .plus => "+",
+                .star => "*",
+                .slash => "/",
 
                 .eof => "eof",
 

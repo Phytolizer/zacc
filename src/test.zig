@@ -86,7 +86,7 @@ pub fn main() !void {
 }
 
 pub fn run() !void {
-    const stages = 2;
+    const stages = 3;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.detectLeaks();
