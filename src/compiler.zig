@@ -26,13 +26,8 @@ pub fn compile(
     output: ?[]const u8,
     out_err: *ErrorInfo,
 ) !void {
-    const contents = try std.fs.cwd().readFileAlloc(
-        a,
-        input,
-        std.math.maxInt(usize),
-    );
     var lex_err: Lexer.ErrorInfo = undefined;
-    var parser = Parser.init(a, contents, &lex_err) catch |e| {
+    var parser = Parser.init(a, input, &lex_err) catch |e| {
         out_err.* = .{ .lex = lex_err };
         return e;
     };
@@ -45,7 +40,7 @@ pub fn compile(
     var temp_dir = try std.fs.cwd().makeOpenPath(temp_dpath, .{});
     defer {
         temp_dir.close();
-        // std.fs.cwd().deleteTree(temp_dpath) catch {};
+        std.fs.cwd().deleteTree(temp_dpath) catch {};
     }
     const temp_path = try std.fs.path.join(a, &.{ temp_dpath, "out.s" });
     {

@@ -4,12 +4,16 @@ const Token = @import("token.zig").Token;
 pub const Lexer = struct {
     arena: std.heap.ArenaAllocator,
     input: []const u8,
+    filepath: []const u8,
     offset: usize = 0,
     line: usize = 1,
+    column: usize = 1,
 
     pub const ErrorInfo = struct {
         message: []u8,
+        filepath: []const u8,
         line: usize,
+        column: usize,
 
         pub fn format(
             self: @This(),
@@ -17,14 +21,25 @@ pub const Lexer = struct {
             _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void {
-            try writer.print("line {d}: {s}", .{ self.line, self.message });
+            try writer.print("{s}:{d}:{d}: {s}", .{
+                self.filepath,
+                self.line,
+                self.column,
+                self.message,
+            });
         }
     };
 
-    pub fn init(a: std.mem.Allocator, input: []const u8) @This() {
+    pub fn init(a: std.mem.Allocator, filepath: []const u8) !@This() {
+        const input = try std.fs.cwd().readFileAlloc(
+            a,
+            filepath,
+            std.math.maxInt(usize),
+        );
         var result = @This(){
             .arena = std.heap.ArenaAllocator.init(a),
             .input = input,
+            .filepath = filepath,
         };
         return result;
     }
@@ -40,16 +55,17 @@ pub const Lexer = struct {
 
     fn next(self: *@This()) void {
         if (self.get()) |c| {
-            if (c == '\n') self.line += 1;
+            if (c == '\n') {
+                self.line += 1;
+                self.column = 0;
+            }
+            self.column += 1;
         }
         self.offset += 1;
     }
 
     fn nextToken(self: *@This(), out_err: *ErrorInfo) !Token.Kind {
-        while (self.get()) |c| {
-            if (!std.ascii.isWhitespace(c)) break;
-            self.next();
-        }
+        const start = self.offset;
         if (self.get()) |c| {
             switch (c) {
                 '(' => {
@@ -82,7 +98,49 @@ pub const Lexer = struct {
                 },
                 '!' => {
                     self.next();
+                    if (self.get()) |c2| if (c2 == '=') {
+                        self.next();
+                        return .bang_equal;
+                    };
+
                     return .bang;
+                },
+                '=' => {
+                    self.next();
+                    if (self.get()) |c2| if (c2 == '=') {
+                        self.next();
+                        return .equal_equal;
+                    };
+                },
+                '&' => {
+                    self.next();
+                    if (self.get()) |c2| if (c2 == '&') {
+                        self.next();
+                        return .amp_amp;
+                    };
+                },
+                '|' => {
+                    self.next();
+                    if (self.get()) |c2| if (c2 == '|') {
+                        self.next();
+                        return .pipe_pipe;
+                    };
+                },
+                '<' => {
+                    self.next();
+                    if (self.get()) |c2| if (c2 == '=') {
+                        self.next();
+                        return .less_equal;
+                    };
+                    return .less;
+                },
+                '>' => {
+                    self.next();
+                    if (self.get()) |c2| if (c2 == '=') {
+                        self.next();
+                        return .greater_equal;
+                    };
+                    return .greater;
                 },
                 '+' => {
                     self.next();
@@ -97,7 +155,7 @@ pub const Lexer = struct {
                     return .slash;
                 },
                 else => if (std.ascii.isAlphabetic(c) or c == '_') {
-                    const start = self.offset;
+                    const id_start = self.offset;
                     while (self.get()) |c2| {
                         if (!std.ascii.isAlphanumeric(c2) and c2 != '_') break;
                         self.next();
@@ -106,39 +164,45 @@ pub const Lexer = struct {
                         .{ "int", .int },
                         .{ "return", .@"return" },
                     });
-                    const text = self.input[start..self.offset];
+                    const text = self.input[id_start..self.offset];
                     return keywords.get(text) orelse
                         .{ .ident = try self.arena.allocator().dupe(u8, text) };
                 } else if (std.ascii.isDigit(c)) {
-                    const start = self.offset;
+                    const num_start = self.offset;
                     while (self.get()) |c2| {
                         if (!std.ascii.isDigit(c2)) break;
                         self.next();
                     }
-                    const text = self.input[start..self.offset];
+                    const text = self.input[num_start..self.offset];
                     const num = try std.fmt.parseInt(i32, text, 10);
                     return .{ .constant = num };
-                } else {
-                    out_err.* = .{
-                        .message = std.fmt.allocPrint(
-                            self.arena.allocator(),
-                            "can't handle character: {c}",
-                            .{c},
-                        ) catch unreachable,
-                        .line = self.line,
-                    };
-                    return error.UnrecognizedToken;
-                },
+                } else self.next(),
             }
+            out_err.* = .{
+                .message = std.fmt.allocPrint(
+                    self.arena.allocator(),
+                    "unrecognized token: {s}",
+                    .{self.input[start..self.offset]},
+                ) catch unreachable,
+                .filepath = self.filepath,
+                .line = self.line,
+                .column = self.column,
+            };
+            return error.UnrecognizedToken;
         } else return .eof;
     }
 
     pub fn lex(self: *@This(), out_err: *ErrorInfo) ![]Token {
         var tokens = std.ArrayList(Token).init(self.arena.allocator());
         while (true) {
+            while (self.get()) |c| {
+                if (!std.ascii.isWhitespace(c)) break;
+                self.next();
+            }
             const line = self.line;
+            const column = self.column;
             const token_kind = try self.nextToken(out_err);
-            const token = Token.init(token_kind, line);
+            const token = Token.init(token_kind, self.filepath, line, column);
             try tokens.append(token);
 
             if (token.kind == .eof) break;

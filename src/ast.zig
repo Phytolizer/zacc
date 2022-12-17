@@ -18,6 +18,14 @@ pub const BinaryOp = enum {
     subtraction,
     multiplication,
     division,
+    logical_and,
+    logical_or,
+    equal,
+    not_equal,
+    less_than,
+    greater_than,
+    less_equal,
+    greater_equal,
 
     pub fn fromTag(tag: Token.Kind.Tag) @This() {
         return switch (tag) {
@@ -25,6 +33,14 @@ pub const BinaryOp = enum {
             .minus => .subtraction,
             .star => .multiplication,
             .slash => .division,
+            .amp_amp => .logical_and,
+            .pipe_pipe => .logical_or,
+            .equal_equal => .equal,
+            .bang_equal => .not_equal,
+            .less => .less_than,
+            .greater => .greater_than,
+            .less_equal => .less_equal,
+            .greater_equal => .greater_equal,
             else => unreachable,
         };
     }

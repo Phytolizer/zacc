@@ -1,6 +1,8 @@
 const std = @import("std");
 const compiler = @import("compiler.zig");
 
+const stages = 4;
+
 const TestPath = struct {
     path: []u8,
     num: usize,
@@ -40,14 +42,19 @@ fn doTest(p: TestPath, a: std.mem.Allocator) !void {
     const full_path = try std.fs.path.join(aa, &.{ "src", "tests", p.path });
     std.debug.print("{s} ...\n", .{full_path});
     var err: compiler.ErrorInfo = undefined;
+    const path_stem = std.fs.path.stem(p.path);
+    const skip_on_failure = std.mem.startsWith(u8, path_stem, "skip_on_failure_");
     compiler.compile(
         aa,
         full_path,
         null,
         &err,
-    ) catch |e| if (!p.invalid) {
+    ) catch |e| if (!p.invalid and !skip_on_failure) {
         std.debug.print("error: {}\n", .{err});
         return e;
+    } else if (skip_on_failure) {
+        std.debug.print("skip failure: {}\n", .{err});
+        return;
     };
     if (!p.invalid) {
         var child = std.ChildProcess.init(
@@ -59,6 +66,7 @@ fn doTest(p: TestPath, a: std.mem.Allocator) !void {
         child = std.ChildProcess.init(&.{
             "zig",
             "cc",
+            "-w",
             "-target",
             "riscv64-linux-musl",
             full_path,
@@ -74,7 +82,11 @@ fn doTest(p: TestPath, a: std.mem.Allocator) !void {
         }, aa);
         const expected_ret = try child.spawnAndWait();
 
-        try std.testing.expectEqual(expected_ret, actual_ret);
+        std.testing.expectEqual(expected_ret, actual_ret) catch |e| {
+            if (skip_on_failure) {
+                std.debug.print("skip execution failure\n", .{});
+            } else return e;
+        };
 
         try std.fs.cwd().deleteFile("a.out");
         try std.fs.cwd().deleteFile("expected.out");
@@ -86,8 +98,6 @@ pub fn main() !void {
 }
 
 pub fn run() !void {
-    const stages = 3;
-
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.detectLeaks();
     const a = gpa.allocator();

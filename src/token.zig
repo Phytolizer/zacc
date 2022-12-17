@@ -2,10 +2,22 @@ const std = @import("std");
 
 pub const Token = struct {
     kind: Kind,
+    filepath: []const u8,
     line: usize,
+    column: usize,
 
-    pub fn init(kind: Kind, line: usize) @This() {
-        return .{ .kind = kind, .line = line };
+    pub fn init(
+        kind: Kind,
+        filepath: []const u8,
+        line: usize,
+        column: usize,
+    ) @This() {
+        return .{
+            .kind = kind,
+            .filepath = filepath,
+            .line = line,
+            .column = column,
+        };
     }
 
     pub const Kind = union(Tag) {
@@ -24,6 +36,14 @@ pub const Token = struct {
         plus,
         star,
         slash,
+        amp_amp,
+        pipe_pipe,
+        equal_equal,
+        bang_equal,
+        less,
+        less_equal,
+        greater,
+        greater_equal,
 
         eof,
 
@@ -43,6 +63,14 @@ pub const Token = struct {
             plus,
             star,
             slash,
+            amp_amp,
+            pipe_pipe,
+            equal_equal,
+            bang_equal,
+            less,
+            less_equal,
+            greater,
+            greater_equal,
 
             eof,
 
@@ -85,6 +113,14 @@ pub const Token = struct {
                 .plus => "+",
                 .star => "*",
                 .slash => "/",
+                .amp_amp => "&&",
+                .pipe_pipe => "||",
+                .equal_equal => "==",
+                .bang_equal => "!=",
+                .less => "<",
+                .less_equal => "<=",
+                .greater => ">",
+                .greater_equal => ">=",
 
                 .eof => "eof",
 

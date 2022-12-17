@@ -13,7 +13,9 @@ pub const Parser = struct {
 
     pub const ErrorInfo = struct {
         message: []u8,
+        filepath: []const u8,
         line: usize,
+        column: usize,
 
         pub fn format(
             self: @This(),
@@ -21,18 +23,23 @@ pub const Parser = struct {
             _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void {
-            try writer.print("line {d}: {s}", .{ self.line, self.message });
+            try writer.print("{s}:{d}:{d}: {s}", .{
+                self.filepath,
+                self.line,
+                self.column,
+                self.message,
+            });
         }
     };
 
     pub fn init(
         a: std.mem.Allocator,
-        source: []const u8,
+        filepath: []const u8,
         out_lex_err: *Lexer.ErrorInfo,
     ) !@This() {
         var result: @This() = undefined;
         result.a = a;
-        result.lexer = Lexer.init(a, source);
+        result.lexer = try Lexer.init(a, filepath);
         result.tokens = try result.lexer.lex(out_lex_err);
         result.pos = 0;
         return result;
@@ -62,7 +69,9 @@ pub const Parser = struct {
                     "unexpected token \"{}\", expected <{}>",
                     .{ self.current().kind, kind },
                 ),
+                .filepath = self.current().filepath,
                 .line = self.current().line,
+                .column = self.current().column,
             };
             return error.UnexpectedToken;
         }
@@ -117,7 +126,7 @@ pub const Parser = struct {
         return result;
     }
 
-    fn parseExpression(
+    fn parseAdditiveExpression(
         self: *@This(),
         out_err: *ErrorInfo,
     ) Error!*ast.Expression {
@@ -130,6 +139,110 @@ pub const Parser = struct {
                         ast.BinaryOp.fromTag(self.current().kind.tag());
                     self.pos += 1;
                     const right = try self.parseTerm(out_err);
+                    result = try self.a.create(ast.Expression);
+                    result.* = .{ .binary_op = .{
+                        .left = left,
+                        .operator = operator,
+                        .right = right,
+                    } };
+                },
+                else => break,
+            }
+        }
+        return result;
+    }
+
+    fn parseRelationalExpression(
+        self: *@This(),
+        out_err: *ErrorInfo,
+    ) Error!*ast.Expression {
+        var result = try self.parseAdditiveExpression(out_err);
+        while (true) {
+            switch (self.current().kind.tag()) {
+                .less, .greater, .less_equal, .greater_equal => {
+                    const left = result;
+                    const operator =
+                        ast.BinaryOp.fromTag(self.current().kind.tag());
+                    self.pos += 1;
+                    const right = try self.parseAdditiveExpression(out_err);
+                    result = try self.a.create(ast.Expression);
+                    result.* = .{ .binary_op = .{
+                        .left = left,
+                        .operator = operator,
+                        .right = right,
+                    } };
+                },
+                else => break,
+            }
+        }
+        return result;
+    }
+
+    fn parseEqualityExpression(
+        self: *@This(),
+        out_err: *ErrorInfo,
+    ) Error!*ast.Expression {
+        var result = try self.parseRelationalExpression(out_err);
+        while (true) {
+            switch (self.current().kind.tag()) {
+                .equal_equal, .bang_equal => {
+                    const left = result;
+                    const operator =
+                        ast.BinaryOp.fromTag(self.current().kind.tag());
+                    self.pos += 1;
+                    const right = try self.parseRelationalExpression(out_err);
+                    result = try self.a.create(ast.Expression);
+                    result.* = .{ .binary_op = .{
+                        .left = left,
+                        .operator = operator,
+                        .right = right,
+                    } };
+                },
+                else => break,
+            }
+        }
+        return result;
+    }
+
+    fn parseLogicalAndExpression(
+        self: *@This(),
+        out_err: *ErrorInfo,
+    ) Error!*ast.Expression {
+        var result = try self.parseEqualityExpression(out_err);
+        while (true) {
+            switch (self.current().kind.tag()) {
+                .amp_amp => {
+                    const left = result;
+                    const operator =
+                        ast.BinaryOp.fromTag(self.current().kind.tag());
+                    self.pos += 1;
+                    const right = try self.parseEqualityExpression(out_err);
+                    result = try self.a.create(ast.Expression);
+                    result.* = .{ .binary_op = .{
+                        .left = left,
+                        .operator = operator,
+                        .right = right,
+                    } };
+                },
+                else => break,
+            }
+        }
+        return result;
+    }
+
+    fn parseExpression(
+        self: *@This(),
+        out_err: *ErrorInfo,
+    ) Error!*ast.Expression {
+        var result = try self.parseLogicalAndExpression(out_err);
+        while (true) {
+            switch (self.current().kind.tag()) {
+                .pipe_pipe => {
+                    const left = result;
+                    const operator =
+                        ast.BinaryOp.fromTag(self.current().kind.tag());
+                    self.pos += 1;
+                    const right = try self.parseLogicalAndExpression(out_err);
                     result = try self.a.create(ast.Expression);
                     result.* = .{ .binary_op = .{
                         .left = left,

@@ -93,7 +93,67 @@ pub const CodeGenerator = struct {
         try push(w, "a0");
     }
 
-    // RV64I asm
+    fn @"and"(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("and a0, a0, a1\n");
+        try push(w, "a0");
+    }
+
+    fn @"or"(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("or a0, a0, a1\n");
+        try push(w, "a0");
+    }
+
+    fn equal(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("xor a0, a0, a1\n");
+        try w.writeAll("sltu a0, zero, a0\n");
+        try w.writeAll("xori a0, a0, 1\n");
+        try push(w, "a0");
+    }
+
+    fn notEqual(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("xor a0, a0, a1\n");
+        try w.writeAll("sltu a0, zero, a0\n");
+        try push(w, "a0");
+    }
+
+    fn less(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("slt a0, a0, a1\n");
+        try push(w, "a0");
+    }
+
+    fn lessEqual(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("slt a0, a1, a0\n");
+        try w.writeAll("xor a0, a0, 1\n");
+        try push(w, "a0");
+    }
+
+    fn greater(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("slt a0, a1, a0\n");
+        try push(w, "a0");
+    }
+
+    fn greaterEqual(w: anytype) !void {
+        try pop(w, "a1");
+        try pop(w, "a0");
+        try w.writeAll("slt a0, a0, a1\n");
+        try w.writeAll("xor a0, a0, 1\n");
+        try push(w, "a0");
+    }
+
     fn genExpression(self: *@This(), w: anytype, expr: *ast.Expression) !void {
         switch (expr.*) {
             .constant => |v| try pushConst(w, "a1", v),
@@ -113,6 +173,14 @@ pub const CodeGenerator = struct {
                     .subtraction => try subtract(w),
                     .multiplication => try multiply(w),
                     .division => try divide(w),
+                    .equal => try equal(w),
+                    .not_equal => try notEqual(w),
+                    .less_than => try less(w),
+                    .less_equal => try lessEqual(w),
+                    .greater_than => try greater(w),
+                    .greater_equal => try greaterEqual(w),
+                    .logical_and => try @"and"(w),
+                    .logical_or => try @"or"(w),
                 }
             },
         }
