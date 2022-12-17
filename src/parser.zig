@@ -67,9 +67,24 @@ pub const Parser = struct {
     fn parseExpression(
         self: *@This(),
         out_err: *ErrorInfo,
-    ) Error!ast.Expression {
-        const token = try self.expect(.constant, out_err);
-        return .{ .value = token.kind.constant };
+    ) Error!*ast.Expression {
+        var result = try self.a.create(ast.Expression);
+        switch (self.current().kind.tag()) {
+            .bang, .minus, .tilde => {
+                const unary_op = ast.UnaryOp.fromTag(self.current().kind.tag());
+                self.pos += 1;
+                const operand = try self.parseExpression(out_err);
+                result.* = .{ .unary_op = .{
+                    .operator = unary_op,
+                    .expression = operand,
+                } };
+            },
+            else => {
+                const token = try self.expect(.constant, out_err);
+                result.* = .{ .constant = token.kind.constant };
+            },
+        }
+        return result;
     }
 
     fn parseStatement(
