@@ -66,6 +66,8 @@ pub const Lexer = struct {
 
     fn nextToken(self: *@This(), out_err: *ErrorInfo) !Token.Kind {
         const start = self.offset;
+        const start_line = self.line;
+        const start_column = self.column;
         if (self.get()) |c| {
             switch (c) {
                 '(' => {
@@ -185,8 +187,8 @@ pub const Lexer = struct {
                     .{self.input[start..self.offset]},
                 ) catch unreachable,
                 .filepath = self.filepath,
-                .line = self.line,
-                .column = self.column,
+                .line = start_line,
+                .column = start_column,
             };
             return error.UnrecognizedToken;
         } else return .eof;
