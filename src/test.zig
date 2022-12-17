@@ -62,19 +62,22 @@ fn doTest(p: TestPath, a: std.mem.Allocator) !void {
             "-target",
             "riscv64-linux-musl",
             full_path,
+            "-o",
+            "expected.out",
         }, aa);
         const compiler_ret = try child.spawnAndWait();
         std.debug.assert(compiler_ret.Exited == 0);
 
         child = std.ChildProcess.init(&.{
             "qemu-riscv64",
-            "a.out",
+            "expected.out",
         }, aa);
         const expected_ret = try child.spawnAndWait();
 
         try std.testing.expectEqual(expected_ret, actual_ret);
 
         try std.fs.cwd().deleteFile("a.out");
+        try std.fs.cwd().deleteFile("expected.out");
     }
 }
 
