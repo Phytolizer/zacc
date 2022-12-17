@@ -2,10 +2,26 @@ const std = @import("std");
 const Parser = @import("parser.zig").Parser;
 const CodeGenerator = @import("codegen.zig").CodeGenerator;
 
+pub const ErrorInfo = union(enum) {
+    parse: Parser.ErrorInfo,
+
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void {
+        switch (self) {
+            .parse => |e| try writer.print("{}", .{e}),
+        }
+    }
+};
+
 pub fn compile(
     a: std.mem.Allocator,
     input: []const u8,
     output: ?[]const u8,
+    out_err: *ErrorInfo,
 ) !void {
     const contents = try std.fs.cwd().readFileAlloc(
         a,
@@ -13,7 +29,11 @@ pub fn compile(
         std.math.maxInt(usize),
     );
     var parser = try Parser.init(a, contents);
-    const ast = try parser.parse();
+    var err: Parser.ErrorInfo = undefined;
+    const ast = parser.parse(&err) catch |e| {
+        out_err.* = .{ .parse = err };
+        return e;
+    };
     const temp_dpath = "zacc-temp";
     var temp_dir = try std.fs.cwd().makeOpenPath(temp_dpath, .{});
     defer {

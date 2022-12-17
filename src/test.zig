@@ -1,5 +1,5 @@
 const std = @import("std");
-const compile = @import("compile.zig").compile;
+const compiler = @import("compiler.zig");
 
 const TestPath = struct {
     path: []u8,
@@ -33,20 +33,26 @@ const TestPath = struct {
     }
 };
 
-fn doTest(p: TestPath) !void {
-    var a = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer a.deinit();
-    const full_path = try std.fs.path.join(a.allocator(), &.{ "src", "tests", p.path });
+fn doTest(p: TestPath, a: std.mem.Allocator) !void {
+    var arena = std.heap.ArenaAllocator.init(a);
+    defer arena.deinit();
+    const aa = arena.allocator();
+    const full_path = try std.fs.path.join(aa, &.{ "src", "tests", p.path });
     std.debug.print("{s} ...\n", .{full_path});
-    compile(
-        a.allocator(),
+    var err: compiler.ErrorInfo = undefined;
+    compiler.compile(
+        aa,
         full_path,
         null,
-    ) catch |e| if (!p.invalid) return e;
+        &err,
+    ) catch |e| if (!p.invalid) {
+        std.debug.print("error: {}\n", .{err});
+        return e;
+    };
     if (!p.invalid) {
         var child = std.ChildProcess.init(
             &.{ "qemu-riscv64", "a.out" },
-            a.allocator(),
+            aa,
         );
         const actual_ret = try child.spawnAndWait();
 
@@ -56,22 +62,30 @@ fn doTest(p: TestPath) !void {
             "-target",
             "riscv64-linux-musl",
             full_path,
-        }, a.allocator());
+        }, aa);
         const compiler_ret = try child.spawnAndWait();
         std.debug.assert(compiler_ret.Exited == 0);
 
         child = std.ChildProcess.init(&.{
             "qemu-riscv64",
             "a.out",
-        }, a.allocator());
+        }, aa);
         const expected_ret = try child.spawnAndWait();
 
         try std.testing.expectEqual(expected_ret, actual_ret);
     }
 }
 
-pub fn run(stages: usize) !void {
-    const a = std.testing.allocator;
+pub fn main() !void {
+    run() catch std.process.exit(1);
+}
+
+pub fn run() !void {
+    const stages = 2;
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.detectLeaks();
+    const a = gpa.allocator();
     var dir = try std.fs.cwd().openIterableDir("src/tests", .{});
     var walker = try dir.walk(a);
     defer walker.deinit();
@@ -104,6 +118,6 @@ pub fn run(stages: usize) !void {
             std.debug.print("== STAGE {d} ==\n", .{p.num});
             stage = p.num;
         }
-        try doTest(p);
+        try doTest(p, a);
     }
 }

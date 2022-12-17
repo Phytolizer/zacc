@@ -5,6 +5,7 @@ pub const Lexer = struct {
     arena: std.heap.ArenaAllocator,
     input: []const u8,
     offset: usize = 0,
+    line: usize = 1,
 
     pub fn init(a: std.mem.Allocator, input: []const u8) @This() {
         var result = @This(){
@@ -24,10 +25,13 @@ pub const Lexer = struct {
     }
 
     fn next(self: *@This()) void {
+        if (self.get()) |c| {
+            if (c == '\n') self.line += 1;
+        }
         self.offset += 1;
     }
 
-    fn nextToken(self: *@This()) !Token {
+    fn nextToken(self: *@This()) !Token.Kind {
         while (self.get()) |c| {
             if (!std.ascii.isWhitespace(c)) break;
             self.next();
@@ -54,13 +58,25 @@ pub const Lexer = struct {
                     self.next();
                     return .semicolon;
                 },
+                '-' => {
+                    self.next();
+                    return .minus;
+                },
+                '~' => {
+                    self.next();
+                    return .tilde;
+                },
+                '!' => {
+                    self.next();
+                    return .bang;
+                },
                 else => if (std.ascii.isAlphabetic(c) or c == '_') {
                     const start = self.offset;
                     while (self.get()) |c2| {
                         if (!std.ascii.isAlphanumeric(c2) and c2 != '_') break;
                         self.next();
                     }
-                    const keywords = std.ComptimeStringMap(Token, .{
+                    const keywords = std.ComptimeStringMap(Token.Kind, .{
                         .{ "int", .int },
                         .{ "return", .@"return" },
                     });
@@ -87,30 +103,13 @@ pub const Lexer = struct {
     pub fn lex(self: *@This()) ![]Token {
         var tokens = std.ArrayList(Token).init(self.arena.allocator());
         while (true) {
-            const token = try self.nextToken();
+            const line = self.line;
+            const token_kind = try self.nextToken();
+            const token = Token.init(token_kind, line);
             try tokens.append(token);
 
-            if (token == .eof) break;
+            if (token.kind == .eof) break;
         }
         return try tokens.toOwnedSlice();
     }
 };
-
-test "lex empty" {
-    var lexer = Lexer.init(std.testing.allocator, "");
-    defer lexer.deinit();
-
-    const tokens = try lexer.lex();
-    try std.testing.expectEqual(@as(usize, 1), tokens.len);
-    try std.testing.expectEqual(Token.eof, tokens[0]);
-}
-
-test "lex simple" {
-    var lexer = Lexer.init(std.testing.allocator, "(");
-    defer lexer.deinit();
-
-    const tokens = try lexer.lex();
-    try std.testing.expectEqual(@as(usize, 2), tokens.len);
-    try std.testing.expectEqual(Token.open_paren, tokens[0]);
-    try std.testing.expectEqual(Token.eof, tokens[1]);
-}
