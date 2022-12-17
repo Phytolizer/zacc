@@ -68,16 +68,19 @@ pub const Parser = struct {
         }
     }
 
-    fn parseExpression(
-        self: *@This(),
-        out_err: *ErrorInfo,
-    ) Error!*ast.Expression {
+    fn parseFactor(self: *@This(), out_err: *ErrorInfo) Error!*ast.Expression {
         var result = try self.a.create(ast.Expression);
         switch (self.current().kind.tag()) {
+            .open_paren => {
+                self.a.destroy(result);
+                self.pos += 1;
+                result = try self.parseExpression(out_err);
+                _ = try self.expect(.close_paren, out_err);
+            },
             .bang, .minus, .tilde => {
                 const unary_op = ast.UnaryOp.fromTag(self.current().kind.tag());
                 self.pos += 1;
-                const operand = try self.parseExpression(out_err);
+                const operand = try self.parseFactor(out_err);
                 result.* = .{ .unary_op = .{
                     .operator = unary_op,
                     .expression = operand,
@@ -87,6 +90,55 @@ pub const Parser = struct {
                 const token = try self.expect(.constant, out_err);
                 result.* = .{ .constant = token.kind.constant };
             },
+        }
+        return result;
+    }
+
+    fn parseTerm(self: *@This(), out_err: *ErrorInfo) Error!*ast.Expression {
+        var result = try self.parseFactor(out_err);
+        while (true) {
+            switch (self.current().kind.tag()) {
+                .star, .slash => {
+                    const left = result;
+                    const operator =
+                        ast.BinaryOp.fromTag(self.current().kind.tag());
+                    self.pos += 1;
+                    const right = try self.parseFactor(out_err);
+                    result = try self.a.create(ast.Expression);
+                    result.* = .{ .binary_op = .{
+                        .left = left,
+                        .operator = operator,
+                        .right = right,
+                    } };
+                },
+                else => break,
+            }
+        }
+        return result;
+    }
+
+    fn parseExpression(
+        self: *@This(),
+        out_err: *ErrorInfo,
+    ) Error!*ast.Expression {
+        var result = try self.parseTerm(out_err);
+        while (true) {
+            switch (self.current().kind.tag()) {
+                .plus, .minus => {
+                    const left = result;
+                    const operator =
+                        ast.BinaryOp.fromTag(self.current().kind.tag());
+                    self.pos += 1;
+                    const right = try self.parseTerm(out_err);
+                    result = try self.a.create(ast.Expression);
+                    result.* = .{ .binary_op = .{
+                        .left = left,
+                        .operator = operator,
+                        .right = right,
+                    } };
+                },
+                else => break,
+            }
         }
         return result;
     }

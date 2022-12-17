@@ -11,6 +11,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
+    run_cmd.expected_exit_code = null;
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }

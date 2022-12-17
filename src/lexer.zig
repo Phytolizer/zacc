@@ -84,6 +84,18 @@ pub const Lexer = struct {
                     self.next();
                     return .bang;
                 },
+                '+' => {
+                    self.next();
+                    return .plus;
+                },
+                '*' => {
+                    self.next();
+                    return .star;
+                },
+                '/' => {
+                    self.next();
+                    return .slash;
+                },
                 else => if (std.ascii.isAlphabetic(c) or c == '_') {
                     const start = self.offset;
                     while (self.get()) |c2| {

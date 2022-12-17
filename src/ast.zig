@@ -13,6 +13,23 @@ pub const Statement = struct {
     return_value: *Expression,
 };
 
+pub const BinaryOp = enum {
+    addition,
+    subtraction,
+    multiplication,
+    division,
+
+    pub fn fromTag(tag: Token.Kind.Tag) @This() {
+        return switch (tag) {
+            .plus => .addition,
+            .minus => .subtraction,
+            .star => .multiplication,
+            .slash => .division,
+            else => unreachable,
+        };
+    }
+};
+
 pub const UnaryOp = enum {
     arithmetic_negation,
     bitwise_negation,
@@ -33,5 +50,10 @@ pub const Expression = union(enum) {
     unary_op: struct {
         operator: UnaryOp,
         expression: *Expression,
+    },
+    binary_op: struct {
+        left: *Expression,
+        operator: BinaryOp,
+        right: *Expression,
     },
 };
