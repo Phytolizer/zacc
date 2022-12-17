@@ -85,6 +85,7 @@ fn doTest(p: TestPath, a: std.mem.Allocator) !void {
         std.testing.expectEqual(expected_ret, actual_ret) catch |e| {
             if (skip_on_failure) {
                 std.debug.print("skip execution failure\n", .{});
+                return;
             } else return e;
         };
 
