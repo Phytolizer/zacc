@@ -53,15 +53,24 @@ pub const Parser = struct {
         return self.tokens[self.pos];
     }
 
+    fn peek(self: *@This()) ?Token {
+        if (self.pos < self.tokens.len) return self.tokens[self.pos + 1];
+        return null;
+    }
+
+    fn advance(self: *@This()) Token {
+        const result = self.current();
+        self.pos += 1;
+        return result;
+    }
+
     fn expect(
         self: *@This(),
         kind: Token.Kind.Tag,
         out_err: *ErrorInfo,
     ) Error!Token {
         if (self.current().kind.tag() == kind) {
-            const result = self.current();
-            self.pos += 1;
-            return result;
+            return self.advance();
         } else {
             out_err.* = .{
                 .message = try std.fmt.allocPrint(
@@ -94,6 +103,10 @@ pub const Parser = struct {
                     .operator = unary_op,
                     .expression = operand,
                 } };
+            },
+            .ident => {
+                const token = self.advance();
+                result.* = .{ .@"var" = token.kind.ident };
             },
             else => {
                 const token = try self.expect(.constant, out_err);
@@ -230,7 +243,7 @@ pub const Parser = struct {
         return result;
     }
 
-    fn parseExpression(
+    fn parseLogicalOrExpression(
         self: *@This(),
         out_err: *ErrorInfo,
     ) Error!*ast.Expression {
@@ -256,14 +269,64 @@ pub const Parser = struct {
         return result;
     }
 
+    fn parseAssignmentExpression(
+        self: *@This(),
+        out_err: *ErrorInfo,
+    ) Error!*ast.Expression {
+        if (self.current().kind.tag() == .ident) {
+            const pt = self.peek();
+            if (pt != null and pt.?.kind.tag() == .equal) {
+                const name = self.advance();
+                self.pos += 1;
+                const expression =
+                    try self.parseAssignmentExpression(out_err);
+                const result = try self.a.create(ast.Expression);
+                result.* = .{ .assign = .{
+                    .name = name.kind.ident,
+                    .value = expression,
+                } };
+                return result;
+            }
+        }
+
+        return try self.parseLogicalOrExpression(out_err);
+    }
+
+    fn parseExpression(self: *@This(), out_err: *ErrorInfo) Error!*ast.Expression {
+        return try self.parseAssignmentExpression(out_err);
+    }
+
     fn parseStatement(
         self: *@This(),
         out_err: *ErrorInfo,
     ) Error!ast.Statement {
-        _ = try self.expect(.@"return", out_err);
-        const expression = try self.parseExpression(out_err);
-        _ = try self.expect(.semicolon, out_err);
-        return .{ .return_value = expression };
+        switch (self.current().kind.tag()) {
+            .@"return" => {
+                self.pos += 1;
+                const expression = try self.parseExpression(out_err);
+                _ = try self.expect(.semicolon, out_err);
+                return .{ .@"return" = expression };
+            },
+            .int => {
+                self.pos += 1;
+                const name = try self.expect(.ident, out_err);
+                var initializer: ?*ast.Expression = null;
+                if (self.current().kind.tag() == .equal) {
+                    self.pos += 1;
+                    initializer = try self.parseExpression(out_err);
+                }
+                _ = try self.expect(.semicolon, out_err);
+                return .{ .declare = .{
+                    .name = name.kind.ident,
+                    .initializer = initializer,
+                } };
+            },
+            else => {
+                const expression = try self.parseExpression(out_err);
+                _ = try self.expect(.semicolon, out_err);
+                return .{ .expression = expression };
+            },
+        }
     }
 
     fn parseFunction(
@@ -275,11 +338,15 @@ pub const Parser = struct {
         _ = try self.expect(.open_paren, out_err);
         _ = try self.expect(.close_paren, out_err);
         _ = try self.expect(.open_brace, out_err);
-        const statement = try self.parseStatement(out_err);
+        var statements = std.ArrayList(ast.Statement).init(self.a);
+        while (self.current().kind.tag() != .close_brace) {
+            const statement = try self.parseStatement(out_err);
+            try statements.append(statement);
+        }
         _ = try self.expect(.close_brace, out_err);
         return .{
             .name = name.kind.ident,
-            .statement = statement,
+            .statements = try statements.toOwnedSlice(),
         };
     }
 

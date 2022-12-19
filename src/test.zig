@@ -1,7 +1,7 @@
 const std = @import("std");
 const compiler = @import("compiler.zig");
 
-const stages = 4;
+const stages = 5;
 
 const TestPath = struct {
     path: []u8,

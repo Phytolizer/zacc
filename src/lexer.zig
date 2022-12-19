@@ -113,6 +113,8 @@ pub const Lexer = struct {
                         self.next();
                         return .equal_equal;
                     };
+
+                    return .equal;
                 },
                 '&' => {
                     self.next();
